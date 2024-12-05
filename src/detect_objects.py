@@ -1,12 +1,9 @@
 import cv2
-import tensorflow as tf
-import numpy as np
-import tensorflow_hub as hub
 
 def detect_objects(input_path, output_path):
-    # TensorFlow Hub에서 YOLO 모델 로드
-    model_url = "https://tfhub.dev/tensorflow/efficientdet/lite2/detection/1"
-    detector = hub.load(model_url)
+    # Haar Cascade 모델 로드 (사람 탐지 예시)
+    person_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_fullbody.xml")
+    dog_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_alt.xml")  # 대체 예시
 
     cap = cv2.VideoCapture(input_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -19,29 +16,22 @@ def detect_objects(input_path, output_path):
         if not ret:
             break
 
-        # 입력 데이터를 모델에 맞게 전처리
-        input_tensor = tf.convert_to_tensor(frame)
-        input_tensor = tf.image.resize(input_tensor, (512, 512))
-        input_tensor = tf.expand_dims(input_tensor, axis=0) / 255.0
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 모델을 사용해 객체 탐지
-        detections = detector(input_tensor)
-        boxes = detections["detection_boxes"][0].numpy()
-        classes = detections["detection_classes"][0].numpy().astype(int)
-        scores = detections["detection_scores"][0].numpy()
+        # 사람 탐지
+        persons = person_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        for (x, y, w, h) in persons:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            cv2.putText(frame, "Person", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-        # 탐지된 객체를 그리기
-        for i, box in enumerate(boxes):
-            if scores[i] < 0.5:  # 50% 이상의 확률만 표시
-                continue
-
-            y1, x1, y2, x2 = box
-            x1, y1, x2, y2 = int(x1 * width), int(y1 * height), int(x2 * width), int(y2 * height)
-            label = f"Class {classes[i]}: {int(scores[i] * 100)}%"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        # 개(대체 탐지) 탐지
+        dogs = dog_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        for (x, y, w, h) in dogs:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(frame, "Dog", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
         out.write(frame)
 
     cap.release()
     out.release()
+
